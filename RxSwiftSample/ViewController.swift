@@ -10,69 +10,23 @@ import UIKit
 import RxSwift
 import RxCocoa
 
-protocol ViewModelInput {
-    func request1()
-    func request2()
-    func request3()
-}
-protocol ViewModelOutput {
-    var number: Observable<Int> { get }
-}
-
-protocol ViewModelType {
-    var inputs: ViewModelInput { get }
-    var outputs: ViewModelOutput { get }
-}
-
+/// VC -- VM -- Model 構造でVCからアクションを受けてObserveで値をx20する仕組みをテストしてみた
+/// 本来ならVM側でRequest処理やModelの更新などをちゃんとしなければいけないです。
 struct Model {
-    var number = Variable(100)
+    var number: Variable<Double> = Variable(100.0)
 }
-
-class ViewModel: ViewModelInput, ViewModelOutput, ViewModelType {
-    let model: Model
-    
-    
-    init() {
-        model = Model()
-        self.number = model.number.asObservable()
-    }
-    
-    let number: Observable<Int>
-    
-    var inputs: ViewModelInput { return self }
-    var outputs: ViewModelOutput { return self }
-}
-
-
 
 class ViewModel2 {
     
     var model = Model.init()
     
-    var number1: Observable<Int> {
+    var observer: Observable<Double> {
         return model.number.asObservable()
     }
-    var number2: Observable<Int> {
-        return model.number.asObservable()
-    }
-    init() {
-
-    }
+    init() { }
     
     func updateValues() {
-        self.model.number = Variable(model.number.value*20)
-    }
-}
-
-extension ViewModel {
-    func request1() {
-        
-    }
-    func request2() {
-        
-    }
-    func request3() {
-        
+        self.model.number.value = self.model.number.value * 20
     }
 }
 
@@ -80,9 +34,10 @@ extension ViewModel {
 class ViewController: UIViewController {
     
     @IBOutlet var button: UIButton!
-    var viewModel: ViewModel!
     var viewModel2: ViewModel2 = ViewModel2()
-    let disposeBag = DisposeBag()
+    var disposeBag = DisposeBag()
+    var tempDispose: Disposable?
+    var count: Int = 0
     
     @IBAction func tap(_ sender: Any) {
         viewModel2.updateValues()
@@ -90,30 +45,35 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        bind()
-        
+        bindViewModel()
     }
     
-    func bind() {
+    func bindViewModel() {
         
-        viewModel2.number1
-            .map({ $0 })
-            .subscribe(onNext: { (newNumber) in
-                print("newNumber > \(newNumber)")
-            }, onError: { (error) in
-                print("error \(error)")
-            }, onCompleted: { 
-                print("complete!")
-            }, onDisposed: { 
-                print("disposed!")
+/// タップされるたびに x20 かける
+        viewModel2.observer
+            .observeOn(MainScheduler.asyncInstance)
+            .subscribe(onNext: { (number) in
+                print("next \(number)")
             })
-//            .addDisposableTo(disposeBag)
+            .addDisposableTo(disposeBag)
 
-    }
-
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
+/// 5回以上呼ばれたらDisposeする処理
+//        self.tempDispose = viewModel2.observer
+//            .subscribe { (event) in
+//                switch event {
+//                case .next(let value):
+//                    print("next \(value)")
+//                    self.count += 1
+//                    if self.count > 5 {
+//                        self.tempDispose?.dispose()
+//                    }
+//                case .completed:
+//                    print("completed")
+//                case .error(let error):
+//                    print(error)
+//                }
+//            }
     }
 }
 
